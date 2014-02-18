@@ -5,9 +5,9 @@
     <version>$version$</version>
     <authors>$author$</authors>
     <owners>$author$</owners>
-    <projectUrl>https://bitbucket.org/GetaAS/opensource</projectUrl>
+    <projectUrl>https://github.com/Geta/ImageOptimization</projectUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>$description$</description>
-    <tags>CMS6R2RTM</tags>
+    <tags>EPiServer, EPiServer 7.5</tags>
   </metadata>
 </package>
