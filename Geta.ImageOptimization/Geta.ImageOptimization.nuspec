@@ -6,8 +6,9 @@
     <authors>$author$</authors>
     <owners>$author$</owners>
     <projectUrl>https://github.com/Geta/ImageOptimization</projectUrl>
+    <iconUrl>http://cdn.geta.no/opensource/icons/image-icon.png</iconUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>$description$</description>
-    <tags>EPiServer, EPiServer 7.5</tags>
+    <tags>EPiServer Performance Image Optimization</tags>
   </metadata>
 </package>
