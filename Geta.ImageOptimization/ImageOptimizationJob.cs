@@ -1,15 +1,18 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Configuration;
 using System.IO;
-using System.Linq;
 using System.Web;
-using System.Web.Hosting;
 using EPiServer;
 using EPiServer.BaseLibrary.Scheduling;
+using EPiServer.Core;
 using EPiServer.Data;
+using EPiServer.DataAccess;
+using EPiServer.Framework.Blobs;
 using EPiServer.PlugIn;
-using EPiServer.Web.Hosting;
+using EPiServer.Security;
+using EPiServer.ServiceLocation;
+using EPiServer.Web;
+using EPiServer.Web.Routing;
 using Geta.ImageOptimization.Configuration;
 using Geta.ImageOptimization.Implementations;
 using Geta.ImageOptimization.Interfaces;
@@ -25,7 +28,8 @@ namespace Geta.ImageOptimization
         private readonly IImageOptimization _imageOptimization;
         private readonly IImageLogRepository _imageLogRepository;
 
-        public ImageOptimizationJob() : this(new Implementations.ImageOptimization(), new ImageLogRepository())
+        public ImageOptimizationJob()
+            : this(new Implementations.ImageOptimization(), new ImageLogRepository())
         {
             IsStoppable = true;
         }
@@ -39,120 +43,146 @@ namespace Geta.ImageOptimization
         public override string Execute()
         {
             int count = 0;
-            int totalBytesBefore = 0;
-            int totalBytesAfter = 0;
-            string siteUrl = UriSupport.SiteUrl.ToString();
+            long totalBytesBefore = 0;
+            long totalBytesAfter = 0;
 
-            var allProviders = VirtualPathHandler.Instance.VirtualPathProviders.Where(p => p.Key.GetType() == typeof(VirtualPathVersioningProvider));
+            var contentRepository = ServiceLocator.Current.GetInstance<IContentRepository>();
+            var blobFactory = ServiceLocator.Current.GetInstance<BlobFactory>();
 
-            try
+            var allImages = GetImageFiles(contentRepository.Get<ContentFolder>(SiteDefinition.Current.GlobalAssetsRoot));
+
+            if (_stop)
             {
-                if (!string.IsNullOrEmpty(ImageOptimizationSettings.Settings.SiteUrl))
-                {
-                    siteUrl = ImageOptimizationSettings.Settings.SiteUrl;
-                }
-
-                if (!string.IsNullOrEmpty(ImageOptimizationSettings.Settings.VirtualNames))
-                {
-                    allProviders = FilteredVirtualPathProviders(allProviders);
-                }
-            }
-            catch
-            {
-                // no configuration could be loaded
+                return string.Format("Job stopped after optimizing {0} images.", count);
             }
 
-            foreach (KeyValuePair<VirtualPathProvider, ProviderSettings> vpp in allProviders)
+            // TODO remove previously optimized/checked images
+
+            foreach (ImageData image in allImages)
             {
                 if (_stop)
                 {
-                    return string.Format("Job stopped after optimizing {0} images.", count);
+                    return string.Format("Job completed after optimizing: {0} images. Before: {1} KB, after: {2} KB.", count, totalBytesBefore / 1024, totalBytesAfter / 1024);
                 }
 
-                var rootFolder = VirtualPathHandler.Instance.GetDirectory(vpp.Value.Parameters["virtualPath"], true) as UnifiedDirectory;
+                // TODO Check that image is public and published
 
-                var images = new HashSet<string>();
+                var imageOptimizationRequest = new ImageOptimizationRequest
+                                                   {
+                                                       ImageUrl = GetFriendlyUrl(image.ContentLink)
+                                                   };
 
-                GetImages(images, rootFolder);
+                ImageOptimizationResponse imageOptimizationResponse = this._imageOptimization.ProcessImage(imageOptimizationRequest);
 
-                // remove previously optimized/checked images
-                images = new HashSet<string>(images.Where(virtualPath => this._imageLogRepository.GetLogEntry(VirtualPathUtility.RemoveTrailingSlash(siteUrl) + virtualPath) == null));
+                Identity logEntryId = this.AddLogEntry(imageOptimizationResponse, image);
 
-                foreach (string virtualPath in images)
+                if (imageOptimizationResponse.Successful)
                 {
-                    if (_stop)
+                    totalBytesBefore += imageOptimizationResponse.OriginalImageSize;
+
+                    if (imageOptimizationResponse.OptimizedImageSize > 0)
                     {
-                        return string.Format("Job completed after optimizing: {0} images. Before: {1} KB, after: {2} KB.", count, totalBytesBefore / 1024, totalBytesAfter / 1024);
+                        totalBytesAfter += imageOptimizationResponse.OptimizedImageSize;
+                    }
+                    else
+                    {
+                        totalBytesAfter += imageOptimizationResponse.OriginalImageSize;
                     }
 
-                    var imageOptimizationRequest = new ImageOptimizationRequest
-                                                       {
-                                                           ImageUrl = VirtualPathUtility.RemoveTrailingSlash(siteUrl) + virtualPath
-                                                       };
+                    var file = image.CreateWritableClone() as ImageData;
 
-                    ImageOptimizationResponse imageOptimizationResponse = this._imageOptimization.ProcessImage(imageOptimizationRequest);
+                    byte[] fileContent = imageOptimizationResponse.OptimizedImage;
 
-                    Identity logEntryId = this.AddLogEntry(imageOptimizationResponse, virtualPath);
 
-                    if (imageOptimizationResponse.Successful)
-                    {
-                        totalBytesBefore += imageOptimizationResponse.OriginalImageSize;
+                    var blob = blobFactory.CreateBlob(file.BinaryDataContainer, file.MimeType);
 
-                        if (imageOptimizationResponse.OptimizedImageSize > 0)
-                        {
-                            totalBytesAfter += imageOptimizationResponse.OptimizedImageSize;
-                        }
-                        else
-                        {
-                            totalBytesAfter += imageOptimizationResponse.OriginalImageSize;
-                        }
+                    blob.Write(new MemoryStream(fileContent));
 
-                        var file = HostingEnvironment.VirtualPathProvider.GetFile(virtualPath) as UnifiedFile;
+                    file.BinaryData = blob;
 
-                        if (file == null)
-                        {
-                            continue;
-                        }
+                    contentRepository.Save(file, SaveAction.Publish, AccessLevel.NoAccess);
 
-                        IVersioningFile versioningFile;
-                        byte[] fileContent = imageOptimizationResponse.OptimizedImage;
+                    //versioningFile.CheckIn(string.Format("Optimized image with Smush.it. From: {0} KB to: {1} KB. Saved: {2}%", imageOptimizationResponse.OriginalImageSize / 1024, imageOptimizationResponse.OptimizedImageSize / 1024, imageOptimizationResponse.PercentSaved));
 
-                        if (file.TryAsVersioningFile(out versioningFile))
-                        {
-                            if (!versioningFile.IsCheckedOut)
-                            {
-                                versioningFile.CheckOut();
-                            }
+                    this.UpdateLogEntryToOptimized(logEntryId);
 
-                            using (Stream stream = file.Open(FileMode.Create, FileAccess.Write))
-                            {
-                                stream.Write(fileContent, 0, fileContent.Length);
-                            }
-
-                            versioningFile.CheckIn(string.Format("Optimized image with Smush.it. From: {0} KB to: {1} KB. Saved: {2}%", imageOptimizationResponse.OriginalImageSize/1024, imageOptimizationResponse.OptimizedImageSize/1024, imageOptimizationResponse.PercentSaved));
-
-                            this.UpdateLogEntryToOptimized(logEntryId);
-                        }
-
-                        count++;
-                    }
+                    count++;
                 }
             }
 
-            return string.Format("Job completed after optimizing: {0} images. Before: {1} KB, after: {2} KB.", count, totalBytesBefore/1024, totalBytesAfter/1024);
+            return string.Format("Job completed after optimizing: {0} images. Before: {1} KB, after: {2} KB.", count, totalBytesBefore / 1024, totalBytesAfter / 1024);
         }
 
-        private static IEnumerable<KeyValuePair<VirtualPathProvider, ProviderSettings>> FilteredVirtualPathProviders(IEnumerable<KeyValuePair<VirtualPathProvider, ProviderSettings>> allProviders)
+        private IEnumerable<ImageData> GetImageFiles(ContentFolder contentFolder)
         {
-            string[] virtualNames = ImageOptimizationSettings.Settings.VirtualNames.Split(new[] {','}, StringSplitOptions.RemoveEmptyEntries);
+            var contentLoader = ServiceLocator.Current.GetInstance<IContentLoader>();
 
-            foreach (var provider in allProviders)
+            var queue = new Queue<ContentFolder>();
+            queue.Enqueue(contentFolder);
+            while (queue.Count > 0)
             {
-                if (virtualNames.Contains(provider.Value.Parameters["virtualName"]))
+                contentFolder = queue.Dequeue();
+                try
                 {
-                    yield return provider;
+                    foreach (ContentFolder subDir in contentLoader.GetChildren<ContentFolder>(contentFolder.ContentLink))
+                    {
+                        queue.Enqueue(subDir);
+                    }
+                }
+                catch
+                {
+                }
+                IEnumerable<ImageData> files = null;
+                try
+                {
+                    files = contentLoader.GetChildren<ImageData>(contentFolder.ContentLink);
+                }
+                catch
+                {
+                }
+                if (files != null)
+                {
+                    foreach (var imageData in files)
+                    {
+                        yield return imageData;
+                    }
                 }
             }
+        }
+
+        public string GetFriendlyUrl(ContentReference contentReference)
+        {
+            if (ContentReference.IsNullOrEmpty(contentReference))
+            {
+                return string.Empty;
+            }
+
+            var urlResolver = ServiceLocator.Current.GetInstance<UrlResolver>();
+
+            var url = urlResolver.GetUrl(contentReference);
+
+            return GetExternalUrl(url);
+        }
+
+        public static string GetExternalUrl(string input)
+        {
+            var siteUri = HttpContext.Current != null
+                            ? HttpContext.Current.Request.Url
+                            : SiteDefinition.Current.SiteUrl;
+
+            if (!string.IsNullOrEmpty(ImageOptimizationSettings.Settings.SiteUrl))
+            {
+                siteUri = new Uri(ImageOptimizationSettings.Settings.SiteUrl);
+            }
+
+            var urlBuilder = new UrlBuilder(input)
+            {
+                Scheme = siteUri.Scheme,
+                Host = siteUri.Host,
+                Port = siteUri.Port
+            };
+
+            return urlBuilder.ToString();
         }
 
         private void UpdateLogEntryToOptimized(Identity logEntryId)
@@ -164,49 +194,17 @@ namespace Geta.ImageOptimization
             this._imageLogRepository.Save(logEntry);
         }
 
-        private Identity AddLogEntry(ImageOptimizationResponse imageOptimizationResponse, string virtualPath)
+        private Identity AddLogEntry(ImageOptimizationResponse imageOptimizationResponse, ImageData imageData)
         {
             ImageLogEntry logEntry = this._imageLogRepository.GetLogEntry(imageOptimizationResponse.OriginalImageUrl) ?? new ImageLogEntry();
 
-            logEntry.VirtualPath = virtualPath;
+            logEntry.ContentReference = imageData.ContentLink;
             logEntry.OriginalSize = imageOptimizationResponse.OriginalImageSize;
             logEntry.OptimizedSize = imageOptimizationResponse.OptimizedImageSize;
             logEntry.PercentSaved = imageOptimizationResponse.PercentSaved;
             logEntry.ImageUrl = imageOptimizationResponse.OriginalImageUrl;
 
             return this._imageLogRepository.Save(logEntry);
-        }
-
-        private bool IsImage(string fileExtension)
-        {
-            if (string.IsNullOrEmpty(fileExtension))
-            {
-                return false;
-            }
-
-            string fixedFileName = fileExtension.ToLowerInvariant();
-
-            return fixedFileName.EndsWith(".gif") || fileExtension.EndsWith(".png") || fileExtension.EndsWith(".jpg") || fileExtension.EndsWith(".jpeg");
-        }
-
-        private void GetImages(HashSet<string> images, UnifiedDirectory directory)
-        {
-            UnifiedFile[] files = directory.GetFiles();
-
-            foreach (UnifiedFile file in files)
-            {
-                if (IsImage(file.Extension))
-                {
-                    images.Add(file.VirtualPath);
-                }
-            }
-
-            UnifiedDirectory[] subDirectories = directory.GetDirectories();
-
-            foreach (UnifiedDirectory subDirectory in subDirectories)
-            {
-                GetImages(images, subDirectory);
-            }
         }
 
         public override void Stop()

@@ -1,5 +1,4 @@
-﻿using System.Web;
-using Geta.ImageOptimization.Helpers;
+﻿using Geta.ImageOptimization.Helpers;
 using Geta.ImageOptimization.Interfaces;
 using Geta.ImageOptimization.Messaging;
 

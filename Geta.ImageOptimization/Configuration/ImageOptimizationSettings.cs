@@ -17,15 +17,5 @@ namespace Geta.ImageOptimization.Configuration
             get { return (string)this["siteUrl"]; }
             set { this["siteUrl"] = value; }
         }
-
-        /// <summary>
-        /// Separated by comma: Page Files,Global Files,Documents
-        /// </summary>
-        [ConfigurationProperty("virtualNames")]
-        public string VirtualNames
-        {
-            get { return (string)this["virtualNames"]; }
-            set { this["virtualNames"] = value; }
-        }
     }
 }
