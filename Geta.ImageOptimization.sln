@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 11.00
 # Visual Studio 2010
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Geta.ImageOptimization", "Geta.ImageOptimization.csproj", "{8A715F5E-AAAB-4F40-8FC2-F5C2FC212338}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Geta.ImageOptimization", "Geta.ImageOptimization\Geta.ImageOptimization.csproj", "{8A715F5E-AAAB-4F40-8FC2-F5C2FC212338}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
