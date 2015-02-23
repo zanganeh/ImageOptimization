@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System;
+using System.Linq;
 using EPiServer.Data;
 using Geta.ImageOptimization.Models;
 
@@ -9,6 +10,8 @@ namespace Geta.ImageOptimization.Interfaces
         ImageLogEntry GetLogEntry(Identity id);
 
         ImageLogEntry GetLogEntry(string imageUrl);
+
+        ImageLogEntry GetLogEntry(Guid contentGuid);
 
         IQueryable<ImageLogEntry> GetAllLogEntries();
 

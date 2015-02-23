@@ -1,5 +1,4 @@
 ﻿using System;
-using EPiServer.Core;
 using EPiServer.Data;
 using EPiServer.Data.Dynamic;
 
@@ -10,7 +9,8 @@ namespace Geta.ImageOptimization.Models
     {
         public Identity Id { get; set; }
 
-        public ContentReference ContentReference { get; set; }
+        [EPiServerDataIndex]
+        public Guid ContentGuid { get; set; }
 
         [EPiServerDataIndex]
         public string ImageUrl { get; set; }

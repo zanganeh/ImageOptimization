@@ -1,14 +1,16 @@
-﻿using Geta.ImageOptimization.Helpers;
+﻿using EPiServer.ServiceLocation;
+using Geta.ImageOptimization.Helpers;
 using Geta.ImageOptimization.Interfaces;
 using Geta.ImageOptimization.Messaging;
 
 namespace Geta.ImageOptimization.Implementations
 {
+    [ServiceConfiguration(typeof(IImageOptimization))]
     public class ImageOptimization : IImageOptimization
     {
         private readonly ISmushItProxy _smushItProxy;
 
-        public ImageOptimization() : this(new SmushItProxy())
+        public ImageOptimization() : this(ServiceLocator.Current.GetInstance<ISmushItProxy>())
         {
         }
 

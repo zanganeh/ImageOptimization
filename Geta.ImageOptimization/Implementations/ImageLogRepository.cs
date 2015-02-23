@@ -2,11 +2,13 @@
 using System.Linq;
 using EPiServer.Data;
 using EPiServer.Data.Dynamic;
+using EPiServer.ServiceLocation;
 using Geta.ImageOptimization.Interfaces;
 using Geta.ImageOptimization.Models;
 
 namespace Geta.ImageOptimization.Implementations
 {
+    [ServiceConfiguration(typeof(IImageLogRepository))]
     public class ImageLogRepository : IImageLogRepository
     {
         private static DynamicDataStore Store
@@ -25,6 +27,11 @@ namespace Geta.ImageOptimization.Implementations
         public ImageLogEntry GetLogEntry(string imageUrl)
         {
             return Store.Find<ImageLogEntry>("ImageUrl", imageUrl).FirstOrDefault();
+        }
+
+        public ImageLogEntry GetLogEntry(Guid contentGuid)
+        {
+            return Store.Find<ImageLogEntry>("ContentGuid", contentGuid).FirstOrDefault();
         }
 
         public IQueryable<ImageLogEntry> GetAllLogEntries()

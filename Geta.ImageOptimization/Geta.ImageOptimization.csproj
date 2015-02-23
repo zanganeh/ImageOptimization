@@ -164,7 +164,10 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Configuration\ImageOptimizationConfigurationSection.cs" />
     <Compile Include="Configuration\ImageOptimizationSettings.cs" />
+    <Compile Include="Helpers\ContentExtensions.cs" />
+    <Compile Include="Helpers\MimeTypeHelper.cs" />
     <Compile Include="Helpers\SmushItMapper.cs" />
     <Compile Include="Implementations\ImageLogRepository.cs" />
     <Compile Include="Implementations\ImageOptimization.cs" />
@@ -179,6 +182,7 @@
     <Compile Include="Messaging\ImageOptimizationResponse.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Messaging\SmushItResponse.cs" />
+    <Compile Include="ScheduledJob1.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />

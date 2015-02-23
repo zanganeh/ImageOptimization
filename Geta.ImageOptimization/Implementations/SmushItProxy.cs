@@ -2,11 +2,13 @@
 using System.Web;
 using System.Web.Script.Serialization;
 using EPiServer;
+using EPiServer.ServiceLocation;
 using Geta.ImageOptimization.Interfaces;
 using Geta.ImageOptimization.Messaging;
 
 namespace Geta.ImageOptimization.Implementations
 {
+    [ServiceConfiguration(typeof(ISmushItProxy))]
     public class SmushItProxy : ISmushItProxy
     {
         private readonly WebClient _webClient = new WebClient();

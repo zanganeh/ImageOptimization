@@ -1,20 +1,19 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
-using System.Web;
+using System.Linq;
 using EPiServer;
 using EPiServer.BaseLibrary.Scheduling;
 using EPiServer.Core;
 using EPiServer.Data;
 using EPiServer.DataAccess;
 using EPiServer.Framework.Blobs;
+using EPiServer.Logging;
 using EPiServer.PlugIn;
 using EPiServer.Security;
 using EPiServer.ServiceLocation;
 using EPiServer.Web;
-using EPiServer.Web.Routing;
 using Geta.ImageOptimization.Configuration;
-using Geta.ImageOptimization.Implementations;
+using Geta.ImageOptimization.Helpers;
 using Geta.ImageOptimization.Interfaces;
 using Geta.ImageOptimization.Messaging;
 using Geta.ImageOptimization.Models;
@@ -27,9 +26,9 @@ namespace Geta.ImageOptimization
         private bool _stop;
         private readonly IImageOptimization _imageOptimization;
         private readonly IImageLogRepository _imageLogRepository;
+        private readonly ILogger _logger = LogManager.GetLogger(typeof (ImageOptimizationJob));
 
-        public ImageOptimizationJob()
-            : this(new Implementations.ImageOptimization(), new ImageLogRepository())
+        public ImageOptimizationJob() : this(ServiceLocator.Current.GetInstance<IImageOptimization>(), ServiceLocator.Current.GetInstance<IImageLogRepository>())
         {
             IsStoppable = true;
         }
@@ -49,14 +48,17 @@ namespace Geta.ImageOptimization
             var contentRepository = ServiceLocator.Current.GetInstance<IContentRepository>();
             var blobFactory = ServiceLocator.Current.GetInstance<BlobFactory>();
 
-            var allImages = GetImageFiles(contentRepository.Get<ContentFolder>(SiteDefinition.Current.GlobalAssetsRoot));
+            IEnumerable<ImageData> allImages = GetImageFiles(contentRepository.Get<ContentFolder>(SiteDefinition.Current.GlobalAssetsRoot));
 
             if (_stop)
             {
                 return string.Format("Job stopped after optimizing {0} images.", count);
             }
 
-            // TODO remove previously optimized/checked images
+            if (!ImageOptimizationSettings.Instance.BypassPreviouslyOptimized)
+            {
+                allImages = FilterPreviouslyOptimizedImages(allImages);
+            }
 
             foreach (ImageData image in allImages)
             {
@@ -65,14 +67,17 @@ namespace Geta.ImageOptimization
                     return string.Format("Job completed after optimizing: {0} images. Before: {1} KB, after: {2} KB.", count, totalBytesBefore / 1024, totalBytesAfter / 1024);
                 }
 
-                // TODO Check that image is public and published
+                if (PublishedStateAssessor.IsPublished(image) || image.IsDeleted)
+                {
+                    continue;
+                }
 
                 var imageOptimizationRequest = new ImageOptimizationRequest
                                                    {
-                                                       ImageUrl = GetFriendlyUrl(image.ContentLink)
+                                                       ImageUrl = image.ContentLink.GetFriendlyUrl()
                                                    };
-
                 ImageOptimizationResponse imageOptimizationResponse = this._imageOptimization.ProcessImage(imageOptimizationRequest);
+
 
                 Identity logEntryId = this.AddLogEntry(imageOptimizationResponse, image);
 
@@ -93,8 +98,7 @@ namespace Geta.ImageOptimization
 
                     byte[] fileContent = imageOptimizationResponse.OptimizedImage;
 
-
-                    var blob = blobFactory.CreateBlob(file.BinaryDataContainer, file.MimeType);
+                    var blob = blobFactory.CreateBlob(file.BinaryDataContainer, MimeTypeHelper.GetDefaultExtension(file.MimeType));
 
                     blob.Write(new MemoryStream(fileContent));
 
@@ -102,15 +106,22 @@ namespace Geta.ImageOptimization
 
                     contentRepository.Save(file, SaveAction.Publish, AccessLevel.NoAccess);
 
-                    //versioningFile.CheckIn(string.Format("Optimized image with Smush.it. From: {0} KB to: {1} KB. Saved: {2}%", imageOptimizationResponse.OriginalImageSize / 1024, imageOptimizationResponse.OptimizedImageSize / 1024, imageOptimizationResponse.PercentSaved));
-
                     this.UpdateLogEntryToOptimized(logEntryId);
 
                     count++;
                 }
+                else
+                {
+                    _logger.Error("ErrorMessage from SmushItProxy: " + imageOptimizationResponse.ErrorMessage);
+                }
             }
 
             return string.Format("Job completed after optimizing: {0} images. Before: {1} KB, after: {2} KB.", count, totalBytesBefore / 1024, totalBytesAfter / 1024);
+        }
+
+        private IEnumerable<ImageData> FilterPreviouslyOptimizedImages(IEnumerable<ImageData> allImages)
+        {
+            return allImages.Where(imageData => this._imageLogRepository.GetLogEntry(imageData.ContentGuid) == null);
         }
 
         private IEnumerable<ImageData> GetImageFiles(ContentFolder contentFolder)
@@ -150,41 +161,6 @@ namespace Geta.ImageOptimization
             }
         }
 
-        public string GetFriendlyUrl(ContentReference contentReference)
-        {
-            if (ContentReference.IsNullOrEmpty(contentReference))
-            {
-                return string.Empty;
-            }
-
-            var urlResolver = ServiceLocator.Current.GetInstance<UrlResolver>();
-
-            var url = urlResolver.GetUrl(contentReference);
-
-            return GetExternalUrl(url);
-        }
-
-        public static string GetExternalUrl(string input)
-        {
-            var siteUri = HttpContext.Current != null
-                            ? HttpContext.Current.Request.Url
-                            : SiteDefinition.Current.SiteUrl;
-
-            if (!string.IsNullOrEmpty(ImageOptimizationSettings.Settings.SiteUrl))
-            {
-                siteUri = new Uri(ImageOptimizationSettings.Settings.SiteUrl);
-            }
-
-            var urlBuilder = new UrlBuilder(input)
-            {
-                Scheme = siteUri.Scheme,
-                Host = siteUri.Host,
-                Port = siteUri.Port
-            };
-
-            return urlBuilder.ToString();
-        }
-
         private void UpdateLogEntryToOptimized(Identity logEntryId)
         {
             ImageLogEntry logEntry = this._imageLogRepository.GetLogEntry(logEntryId);
@@ -198,7 +174,7 @@ namespace Geta.ImageOptimization
         {
             ImageLogEntry logEntry = this._imageLogRepository.GetLogEntry(imageOptimizationResponse.OriginalImageUrl) ?? new ImageLogEntry();
 
-            logEntry.ContentReference = imageData.ContentLink;
+            logEntry.ContentGuid = imageData.ContentGuid;
             logEntry.OriginalSize = imageOptimizationResponse.OriginalImageSize;
             logEntry.OptimizedSize = imageOptimizationResponse.OptimizedImageSize;
             logEntry.PercentSaved = imageOptimizationResponse.PercentSaved;
