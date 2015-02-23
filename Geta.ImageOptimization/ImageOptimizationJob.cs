@@ -67,7 +67,7 @@ namespace Geta.ImageOptimization
                     return string.Format("Job completed after optimizing: {0} images. Before: {1} KB, after: {2} KB.", count, totalBytesBefore / 1024, totalBytesAfter / 1024);
                 }
 
-                if (PublishedStateAssessor.IsPublished(image) || image.IsDeleted)
+                if (!PublishedStateAssessor.IsPublished(image) || image.IsDeleted)
                 {
                     continue;
                 }
