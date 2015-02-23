@@ -7,9 +7,9 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyTitle("Geta.ImageOptimization")]
 [assembly: AssemblyDescription("Optimizes images for web usage without loosing quality. Uses Smush.it by Yahoo!")]
 [assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCompany("Geta AS")]
+[assembly: AssemblyCompany("Geta")]
 [assembly: AssemblyProduct("Geta.ImageOptimization")]
-[assembly: AssemblyCopyright("Copyright © Geta AS 2014")]
+[assembly: AssemblyCopyright("Copyright © Geta 2015")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
