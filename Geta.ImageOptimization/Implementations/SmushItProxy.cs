@@ -39,7 +39,7 @@ namespace Geta.ImageOptimization.Implementations
 
         private string BuildUrl(string imageUrl)
         {
-            string endpoint = "http://www.smushit.com/ysmush.it/ws.php";
+            string endpoint = "http://imgopt.com/ws.php";
 
             endpoint = UriSupport.AddQueryString(endpoint, "img", HttpUtility.UrlEncode(imageUrl));
 
