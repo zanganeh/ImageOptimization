@@ -182,7 +182,6 @@
     <Compile Include="Messaging\ImageOptimizationResponse.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Messaging\SmushItResponse.cs" />
-    <Compile Include="ScheduledJob1.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Geta.ImageOptimization.nuspec" />
