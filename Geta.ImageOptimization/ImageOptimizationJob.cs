@@ -48,7 +48,8 @@ namespace Geta.ImageOptimization
             var contentRepository = ServiceLocator.Current.GetInstance<IContentRepository>();
             var blobFactory = ServiceLocator.Current.GetInstance<BlobFactory>();
 
-            IEnumerable<ImageData> allImages = GetImageFiles(contentRepository.Get<ContentFolder>(SiteDefinition.Current.GlobalAssetsRoot));
+			IEnumerable<ImageData> allImages = GetImageFiles(contentRepository.Get<ContentFolder>(SiteDefinition.Current.GlobalAssetsRoot));
+			allImages = allImages.Union(GetImageFiles(contentRepository.Get<ContentFolder>(SiteDefinition.Current.ContentAssetsRoot)));
 
             if (_stop)
             {
