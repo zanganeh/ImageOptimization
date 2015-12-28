@@ -1,9 +1,0 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<configuration xmlns:xdt="http://schemas.microsoft.com/XML-Document-Transform">
-  <configSections>
-    <section name="geta.imageoptimization" type="Geta.ImageOptimization.Configuration.ImageOptimizationConfigurationSection, Geta.ImageOptimization" xdt:Transform="Insert" />
-  </configSections>
-  <geta.imageoptimization xdt:Transform="Insert">
-    <settings bypassPreviouslyOptimized="false" siteUrl="" />
-  </geta.imageoptimization>
-</configuration>

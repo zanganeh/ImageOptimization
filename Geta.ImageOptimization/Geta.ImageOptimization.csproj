@@ -183,8 +183,6 @@
     <Compile Include="Messaging\SmushItResponse.cs" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="web.config.uninstall.xdt" />
-    <Content Include="web.config.install.xdt" />
     <None Include="packages.config">
       <SubType>Designer</SubType>
     </None>
