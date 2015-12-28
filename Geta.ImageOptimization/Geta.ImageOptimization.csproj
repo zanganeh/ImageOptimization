@@ -183,7 +183,6 @@
     <Compile Include="Messaging\SmushItResponse.cs" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="Geta.ImageOptimization.nuspec" />
     <Content Include="web.config.uninstall.xdt" />
     <Content Include="web.config.install.xdt" />
     <None Include="packages.config">
